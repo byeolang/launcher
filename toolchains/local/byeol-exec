@@ -1,0 +1,12 @@
+#!/bin/sh
+
+echo "[byeol-exec demo worker]"
+echo "mode: one-shot dispatch demo"
+echo "argv: $*"
+
+if [ -n "$1" ] && [ -f "$1" ]; then
+    echo "--- source preview ---"
+    sed -n '1,20p' "$1"
+fi
+
+exit 17
