@@ -79,6 +79,16 @@ fs::path detectExecutablePath(const char* argv0) {
     return fs::current_path() / "byeol";
 }
 
+fs::path detectBundledToolchainsDir(const fs::path& executableDir) {
+    const fs::path adjacent = executableDir / "toolchains";
+    if(fs::exists(adjacent)) return adjacent;
+
+    const fs::path sibling = executableDir.parent_path() / "toolchains";
+    if(fs::exists(sibling)) return sibling;
+
+    return adjacent;
+}
+
 ToolchainLayout makeLayout(const char* argv0) {
     ToolchainLayout layout;
     layout.executablePath = detectExecutablePath(argv0);
@@ -99,7 +109,7 @@ ToolchainLayout makeLayout(const char* argv0) {
 
     layout.activeToolchainFile = layout.homeRoot / "active-toolchain.txt";
     layout.userToolchainsDir = layout.homeRoot / "toolchains";
-    layout.bundledToolchainsDir = layout.executableDir / "toolchains";
+    layout.bundledToolchainsDir = detectBundledToolchainsDir(layout.executableDir);
     layout.bundledWorkerPath = layout.bundledToolchainsDir / "local" / layout.workerFileName;
     return layout;
 }
@@ -308,7 +318,6 @@ struct ChildProcess {
 #endif
 };
 
-ChildProcess spawnWorker(const fs::path& workerPath, const std::vector<std::string>& passthroughArgs) {
 #ifdef _WIN32
 std::string join(const std::vector<std::string>& values, const std::string& separator) {
     std::string out;
@@ -319,6 +328,7 @@ std::string join(const std::vector<std::string>& values, const std::string& sepa
     return out;
 }
 
+ChildProcess spawnWorker(const fs::path& workerPath, const std::vector<std::string>& passthroughArgs) {
     std::vector<std::string> ownedArgs;
     ownedArgs.push_back(workerPath.string());
     ownedArgs.insert(ownedArgs.end(), passthroughArgs.begin(), passthroughArgs.end());
@@ -365,7 +375,10 @@ std::string join(const std::vector<std::string>& values, const std::string& sepa
     child.processInfo = processInfo;
     child.running = true;
     return child;
+
 #else
+
+ChildProcess spawnWorker(const fs::path& workerPath, const std::vector<std::string>& passthroughArgs) {
     pid_t pid = ::fork();
     if(pid < 0) {
         throw std::runtime_error(std::string("fork() failed: ") + std::strerror(errno));
