@@ -24,7 +24,12 @@ def system(cmd):
         # In Termux, use subprocess with Termux's shell to avoid SELinux issues
         # SELinux blocks /bin/sh from executing Termux binaries (app_data_file context)
         termux_shell = '/data/data/com.termux/files/usr/bin/sh'
-        return subprocess.run(cmd, shell=True, executable=termux_shell).returncode
+        env = dict(os.environ)
+        # cmake's CMakeDetermineSystem.cmake reads $ENV{PREFIX}/include/android/api-level.h;
+        # if PREFIX is unset the path becomes /include/... which doesn't exist and errors out.
+        if 'PREFIX' not in env or not env['PREFIX']:
+            env['PREFIX'] = '/data/data/com.termux/files/usr'
+        return subprocess.run(cmd, shell=True, executable=termux_shell, env=env).returncode
     else:
         # On other platforms, use standard os.system()
         return os.system(cmd)
@@ -104,9 +109,6 @@ def branch(command):
         return dbgBuild(ignore_tidy)
     elif command == "format":
         return formatCodesWithDocker(True)
-    elif command == "wasm":
-        arg3 = None if len(sys.argv) < 3 else sys.argv[2]
-        return wasmBuild(arg3)
     elif command == "test":
         arg1 = "" if len(sys.argv) < 3 else sys.argv[2]
         ignore_tidy = "--ignore-tidy" in sys.argv
@@ -362,21 +364,6 @@ def _publishDoc():
     return 0
 
 config=""
-
-def wasmBuild(arg):
-    global config, cwd, binDir
-
-    emmake = EmmakeDependency()
-    cmake = CMakeDependency()
-    emcmake = EmcmakeDependency()
-    make = MakeDependency()
-    if checkDependencies([emmake, emcmake, cmake, make]):
-        return -1
-
-    config="-DCMAKE_BUILD_TYPE=Release -DEMSCRIPTEN=1"
-    clean()
-    system(f"{emcmake.binary} {cmake.binary} {config} {cwd}")
-    system(f"{emmake.binary} {make.binary} -j8 -s")
 
 def dbgBuild(ignore_tidy=False):
     global config, cwd
@@ -1240,7 +1227,6 @@ def help():
     print("\t * dbg           build new binary with debug configuration.")
     print("\t * rel           build new binary with release configuration. binary optimized, debug logs will be hidden.")
     print("\t * reldbg        same as rel. but this includes dbg info.")
-    print("\t * wasm          build wasm release binary.")
     print("\t * test          runs unit tests but skip build if they are built already.")
     print("\t * doc           generate documents only.")
     print("\t * cov           generate coverage file and visualize data with html")
@@ -1265,6 +1251,7 @@ def clean():
 
 def _clean(directory):
     for path, dirs, files in os.walk(directory):
+        dirs[:] = [d for d in dirs if d != '_deps']  # FetchContent cache — never touch
 
         for file in files:
             file_path = os.path.join(path, file)
