@@ -44,10 +44,10 @@ static constexpr const char* kArch = "x64";
 static constexpr const char* kWorkerExeName = "byeol";
 #else // Linux / Termux
 static constexpr const char* kOs = "ubuntu";
-#if defined(__aarch64__)
-static constexpr const char* kArch = "arm64";
-#else
+#if defined(__x86_64__)
 static constexpr const char* kArch = "x64";
+#else
+#  error "unsupported architecture. only x86_64 is supported."
 #endif
 static constexpr const char* kWorkerExeName = "byeol";
 #endif
@@ -245,7 +245,7 @@ bool isSafeVersionString(const std::string& version) {
 
 std::string buildDownloadUrl(const std::string& version) {
     return kGithubReleaseBase + version
-        + "/byeol-" + kOs + "-" + kArch + "-portable.zip";
+        + "/byeol-" + kOs + "-" + kArch + ".zip";
 }
 
 // TODO: replace with static libcurl once HTTP library is decided
