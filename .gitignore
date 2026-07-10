@@ -85,3 +85,4 @@ byeol-launcher-pack-codebase-by-repomix.md
 .codex
 .zip
 .tar.gz
+build/CPack*
