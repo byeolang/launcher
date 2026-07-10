@@ -22,6 +22,9 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #endif
 
 #include "mz.h"
@@ -49,7 +52,7 @@ static constexpr const char* kOs = "ubuntu";
 #if defined(__x86_64__)
 static constexpr const char* kArch = "x64";
 #else
-#  error "unsupported architecture. only x86_64 is supported."
+static constexpr const char* kArch = "x64"; // TODO: restore #error after feasibility test
 #endif
 static constexpr const char* kWorkerExeName = "byeol";
 #endif
@@ -102,6 +105,13 @@ fs::path detectExecutablePath(const char* argv0) {
     char buffer[MAX_PATH] = {0};
     DWORD length = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
     if(length > 0) return fs::path(std::string(buffer, length));
+#elif defined(__APPLE__)
+    char buffer[PATH_MAX] = {0};
+    uint32_t size = sizeof(buffer);
+    if(_NSGetExecutablePath(buffer, &size) == 0) {
+        char resolved[PATH_MAX] = {0};
+        if(realpath(buffer, resolved)) return fs::path(resolved);
+    }
 #else
     char buffer[PATH_MAX] = {0};
     ssize_t length = ::readlink("/proc/self/exe", buffer, sizeof(buffer));
@@ -194,7 +204,18 @@ public:
     std::vector<ToolchainEntry> list() const {
         std::vector<ToolchainEntry> entries;
         std::set<std::string> seen;
-        const std::string activeVersion = currentVersion();
+
+        // read active version directly to avoid mutual recursion with currentVersion()
+        std::string activeVersion;
+        {
+            std::ifstream input(_layout.activeToolchainFile);
+            if(input) {
+                std::getline(input, activeVersion);
+                activeVersion = trim(activeVersion);
+            }
+        }
+        if(activeVersion.empty() && fs::exists(_layout.bundledWorkerPath))
+            activeVersion = "local";
 
         auto addEntry = [&](const std::string& version, const fs::path& workerPath, bool bundled) {
             if(version.empty() || workerPath.empty()) return;
@@ -253,6 +274,7 @@ std::string buildDownloadUrl(const std::string& version) {
 static std::size_t curlWriteCallback(char* ptr, std::size_t size, std::size_t nmemb, void* userdata) {
     auto* out = static_cast<std::ofstream*>(userdata);
     out->write(ptr, static_cast<std::streamsize>(size * nmemb));
+    if(!*out) return 0;  // 0 반환 시 curl이 CURLE_WRITE_ERROR로 중단
     return size * nmemb;
 }
 
@@ -289,6 +311,7 @@ bool downloadFile(const std::string& url, const fs::path& destPath) {
 
     if(res != CURLE_OK) {
         std::cerr << "download error: " << curl_easy_strerror(res) << "\n";
+        file.close();  // must close before remove on Windows
         std::error_code ec;
         fs::remove(destPath, ec);
         return false;
@@ -315,7 +338,11 @@ bool extractZip(const fs::path& zipPath, const fs::path& destDir) {
         }
 
         mz_zip_file* info = nullptr;
-        mz_zip_reader_entry_get_info(reader, &info);
+        if(mz_zip_reader_entry_get_info(reader, &info) != MZ_OK || !info) {
+            std::cerr << "failed to get entry info\n";
+            ok = false;
+            break;
+        }
 
         fs::path dest = destDir / info->filename;
         std::error_code ec;

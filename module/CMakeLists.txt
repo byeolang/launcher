@@ -29,6 +29,7 @@ FetchContent_Declare(
     GIT_TAG 4.0.7
     GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(minizip_dep)
+FetchContent_GetProperties(minizip_dep)
 
 # curl (static, platform-native SSL)
 set(BUILD_SHARED_LIBS     OFF CACHE BOOL "" FORCE)
@@ -73,6 +74,7 @@ endforeach(e)
 set(libName "launcher")
 
 add_library(${libName} ${sources})
+target_include_directories(${libName} PRIVATE ${minizip_dep_SOURCE_DIR})
 target_link_libraries(${libName}
     PRIVATE ${libraries} flagStacker MINIZIP::minizip CURL::libcurl)
 install(TARGETS ${libName} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin PERMISSIONS
@@ -81,6 +83,7 @@ install(TARGETS ${libName} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin PERMISSIONS
     WORLD_READ WORLD_EXECUTE)
 
 add_executable(${moduleName} ${sources})
+target_include_directories(${moduleName} PRIVATE ${minizip_dep_SOURCE_DIR})
 target_link_libraries(${moduleName}
     PRIVATE ${libraries} flagStacker MINIZIP::minizip CURL::libcurl)
 install(TARGETS ${moduleName} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin PERMISSIONS
