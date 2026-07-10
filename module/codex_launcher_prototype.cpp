@@ -24,7 +24,9 @@
 #include <unistd.h>
 #endif
 
-#include "miniz.h"
+#include "mz.h"
+#include "mz_zip_rw.h"
+#include <curl/curl.h>
 
 namespace fs = std::filesystem;
 
@@ -248,34 +250,74 @@ std::string buildDownloadUrl(const std::string& version) {
         + "/byeol-" + kOs + "-" + kArch + ".zip";
 }
 
-// TODO: replace with static libcurl once HTTP library is decided
-bool downloadFile(const std::string& url, const fs::path& destPath) {
-    std::string dest = destPath.string();
-    std::string cmd =
-        "curl -L --fail --progress-bar"
-        " -o \"" + dest + "\""
-        " \"" + url + "\"";
-    return std::system(cmd.c_str()) == 0;
+static std::size_t curlWriteCallback(char* ptr, std::size_t size, std::size_t nmemb, void* userdata) {
+    auto* out = static_cast<std::ofstream*>(userdata);
+    out->write(ptr, static_cast<std::streamsize>(size * nmemb));
+    return size * nmemb;
 }
 
-bool extractZip(const fs::path& zipPath, const fs::path& destDir) {
-    mz_zip_archive zip{};
-    if(!mz_zip_reader_init_file(&zip, zipPath.string().c_str(), 0)) {
-        std::cerr << "failed to open zip: "
-                  << mz_zip_get_error_string(mz_zip_get_last_error(&zip)) << "\n";
+static int curlProgressCallback(void* /*clientp*/, curl_off_t dltotal, curl_off_t dlnow,
+                                  curl_off_t /*ultotal*/, curl_off_t /*ulnow*/) {
+    if(dltotal <= 0) return 0;
+    int pct = static_cast<int>(dlnow * 100 / dltotal);
+    std::cout << "\r  " << pct << "% (" << dlnow / 1024 << " / " << dltotal / 1024 << " KB)   "
+              << std::flush;
+    return 0;
+}
+
+bool downloadFile(const std::string& url, const fs::path& destPath) {
+    CURL* curl = curl_easy_init();
+    if(!curl) return false;
+
+    std::ofstream file(destPath, std::ios::binary);
+    if(!file) {
+        curl_easy_cleanup(curl);
         return false;
     }
 
-    mz_uint numFiles = mz_zip_reader_get_num_files(&zip);
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, curlProgressCallback);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+
+    CURLcode res = curl_easy_perform(curl);
+    std::cout << "\n";
+    curl_easy_cleanup(curl);
+
+    if(res != CURLE_OK) {
+        std::cerr << "download error: " << curl_easy_strerror(res) << "\n";
+        std::error_code ec;
+        fs::remove(destPath, ec);
+        return false;
+    }
+    return true;
+}
+
+bool extractZip(const fs::path& zipPath, const fs::path& destDir) {
+    void* reader = mz_zip_reader_create();
+
+    if(mz_zip_reader_open_file(reader, zipPath.string().c_str()) != MZ_OK) {
+        std::cerr << "failed to open zip: " << zipPath << "\n";
+        mz_zip_reader_delete(&reader);
+        return false;
+    }
+
     bool ok = true;
+    int32_t err = mz_zip_reader_goto_first_entry(reader);
 
-    for(mz_uint i = 0; i < numFiles; ++i) {
-        mz_zip_archive_file_stat stat{};
-        if(!mz_zip_reader_file_stat(&zip, i, &stat)) continue;
-        if(stat.m_is_directory) continue;
+    while(err == MZ_OK) {
+        if(mz_zip_reader_entry_is_dir(reader) == MZ_OK) {
+            err = mz_zip_reader_goto_next_entry(reader);
+            continue;
+        }
 
-        fs::path dest = destDir / stat.m_filename;
+        mz_zip_file* info = nullptr;
+        mz_zip_reader_entry_get_info(reader, &info);
 
+        fs::path dest = destDir / info->filename;
         std::error_code ec;
         fs::create_directories(dest.parent_path(), ec);
         if(ec) {
@@ -284,21 +326,22 @@ bool extractZip(const fs::path& zipPath, const fs::path& destDir) {
             break;
         }
 
-        if(!mz_zip_reader_extract_to_file(&zip, i, dest.string().c_str(), 0)) {
-            std::cerr << "failed to extract: " << stat.m_filename
-                      << " (" << mz_zip_get_error_string(mz_zip_get_last_error(&zip)) << ")\n";
+        if(mz_zip_reader_entry_save_file(reader, dest.string().c_str()) != MZ_OK) {
+            std::cerr << "failed to extract: " << info->filename << "\n";
             ok = false;
             break;
         }
 
 #ifndef _WIN32
-        // Restore Unix permissions stored in zip external_attr (upper 16 bits).
-        uint32_t unixMode = (stat.m_external_attr >> 16) & 0xFFFF;
+        uint32_t unixMode = (info->external_fa >> 16) & 0xFFFF;
         if(unixMode != 0) ::chmod(dest.string().c_str(), unixMode & 0777);
 #endif
+
+        err = mz_zip_reader_goto_next_entry(reader);
     }
 
-    mz_zip_reader_end(&zip);
+    mz_zip_reader_close(reader);
+    mz_zip_reader_delete(&reader);
     return ok;
 }
 
