@@ -106,7 +106,7 @@ jobs:
     - name: install native dependencies
       run: |
         sudo apt-get update
-        sudo apt install -y python3 python3-pip cmake wget flex graphviz clang clang-format clang-tidy
+        sudo apt install -y python3 python3-pip cmake wget flex graphviz clang clang-format clang-tidy libssl-dev
 
     - name: download Bison source
       if: steps.bison-source-cache.outputs.cache-hit != 'true'
@@ -181,7 +181,7 @@ jobs:
     - name: install native dependencies
       run: |
         sudo apt-get update
-        sudo apt install -y python3 python3-pip cmake wget flex graphviz
+        sudo apt install -y python3 python3-pip cmake wget flex graphviz libssl-dev
 
     - name: download Bison source
       if: steps.bison-source-cache.outputs.cache-hit != 'true'

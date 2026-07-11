@@ -12,6 +12,11 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(flagStacker_dep)
 
 # minizip-ng (ZIP extraction, bundles zlib automatically)
+# We only static-link these deps into byeol; we never `install` them. Skipping
+# their install rules also sidesteps a minizip-ng bug where it tries to
+# install() the fetched zlib-ng `zlib` ALIAS target (fatal on Linux/Windows,
+# where MZ_ZLIB stays on; macOS avoids it via Apple libcompression).
+set(SKIP_INSTALL_ALL    ON  CACHE BOOL "" FORCE)
 set(MZ_ZLIB             ON  CACHE BOOL "" FORCE)
 set(MZ_BZIP2            OFF CACHE BOOL "" FORCE)
 set(MZ_LZMA             OFF CACHE BOOL "" FORCE)
@@ -40,12 +45,21 @@ set(CURL_USE_LIBPSL       OFF CACHE BOOL "" FORCE)
 set(CURL_USE_LIBSSH2      OFF CACHE BOOL "" FORCE)
 set(USE_LIBIDN2           OFF CACHE BOOL "" FORCE)
 set(CURL_DISABLE_LDAP     ON  CACHE BOOL "" FORCE)
+# We download release zips as-is and unzip them with minizip; curl never needs
+# zlib for HTTP content-decoding. Turning it off keeps zlib-ng (linked by
+# minizip) the single, statically-embedded zlib in the binary and avoids
+# dragging in a dynamic system libz through curl.
+set(CURL_ZLIB             OFF CACHE STRING "" FORCE)
 if(WIN32)
     set(CURL_USE_SCHANNEL     ON CACHE BOOL "" FORCE)
 elseif(APPLE)
     set(CURL_USE_SECTRANSP    ON CACHE BOOL "" FORCE)
 else()
+    # Linux: static-link OpenSSL so the launcher doesn't depend on the target
+    # machine's libssl/libcrypto soname at runtime. Requires libssl-dev (which
+    # ships libssl.a/libcrypto.a) on the build machine.
     set(CURL_USE_OPENSSL      ON CACHE BOOL "" FORCE)
+    set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)
 endif()
 FetchContent_Declare(
     curl_dep
