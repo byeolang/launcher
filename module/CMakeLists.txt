@@ -68,16 +68,20 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(curl_dep)
 
-# this `launcher` project generates `byeol` executable as launch my core
-# byeol interpreter.
-set(moduleName "byeol")
-message("building launcher of ${moduleName}...")
+# this `launcher` project builds the `launcher` executable, whose user-facing
+# output file is named `byeol` (project/target name = launcher, shipped file =
+# byeol). A `launcherLib` static library of the same sources is kept so unit
+# tests can link the launcher logic directly.
+set(exeName    "launcher")   # project/target name (internal identifier)
+set(outputName "byeol")      # user-facing file name
+set(libName    "launcherLib")
+message("building ${exeName} (ships as ${outputName})...")
 
 foreach(d ${dependencies})
     set(libraries ${libraries} PUBLIC ${d})
 endforeach(d)
 
-message("\tbuilding ${moduleName} dependents to ${dependencies}")
+message("\tbuilding ${exeName} dependents to ${dependencies}")
 
 file(GLOB_RECURSE sources "*.cpp")
 foreach(e ${sources})
@@ -87,8 +91,7 @@ foreach(e ${dependencies})
     message("\tlinking ${e}")
 endforeach(e)
 
-set(libName "launcher")
-
+# test-facing static library of the launcher logic
 add_library(${libName} ${sources})
 target_include_directories(${libName} PRIVATE ${minizip_dep_SOURCE_DIR})
 target_link_libraries(${libName}
@@ -98,11 +101,13 @@ install(TARGETS ${libName} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin PERMISSIONS
     GROUP_READ GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE)
 
-add_executable(${moduleName} ${sources})
-target_include_directories(${moduleName} PRIVATE ${minizip_dep_SOURCE_DIR})
-target_link_libraries(${moduleName}
+# the launcher executable; target is `launcher`, output file is `byeol`
+add_executable(${exeName} ${sources})
+set_target_properties(${exeName} PROPERTIES OUTPUT_NAME ${outputName})
+target_include_directories(${exeName} PRIVATE ${minizip_dep_SOURCE_DIR})
+target_link_libraries(${exeName}
     PRIVATE ${libraries} flagStacker MINIZIP::minizip CURL::libcurl)
-install(TARGETS ${moduleName} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin PERMISSIONS
+install(TARGETS ${exeName} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin PERMISSIONS
     OWNER_WRITE OWNER_READ OWNER_EXECUTE
     GROUP_READ GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE)
@@ -112,5 +117,5 @@ get_target_property(_fs_inc flagStacker
 message(STATUS "flagStacker includes = ${_fs_inc}")
 
 if((MSVC) AND (MSVC_VERSION GREATER_EQUAL 1914))
-    target_compile_options(${moduleName} PUBLIC "/Zc:preprocessor")
+    target_compile_options(${exeName} PUBLIC "/Zc:preprocessor")
 endif()

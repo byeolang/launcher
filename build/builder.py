@@ -656,13 +656,8 @@ def _make(msbuild, make):
     if isWindow():
         printInfoEnd("build the generated solution using visual studio's msbuild tool...")
         system("dir " + cwd + "\\module")
-        system("dir " + cwd + "\\module\\frontend")
-        res = system(f"{msbuild.binary} {winProp} {cwd}\\module\\frontend\\byeol.vcxproj")
-        if res != 0:
-            printErr("failed")
-            return res
-
-        res = system(f"{msbuild.binary} {winProp} {cwd}\\module\\bundle\\sys\\sys.vcxproj")
+        # `launcher` is the executable target; its output file is `byeol.exe`.
+        res = system(f"{msbuild.binary} {winProp} {cwd}\\module\\launcher.vcxproj")
         if res != 0:
             printErr("failed")
             return res
