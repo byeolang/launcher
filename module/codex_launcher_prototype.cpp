@@ -2,6 +2,8 @@
 // This file is intentionally self-contained so the structure is easy to copy or rewrite.
 
 #include <algorithm>
+#include <cctype>
+#include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
@@ -14,6 +16,15 @@
 #include <vector>
 
 #ifdef _WIN32
+// WIN32_LEAN_AND_MEAN keeps <windows.h> from pulling in the legacy <winsock.h>,
+// which would clash with the <winsock2.h> that <curl/curl.h> includes below.
+// NOMINMAX prevents the min/max macros from colliding with the standard library.
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #else
 #include <cerrno>
@@ -95,6 +106,14 @@ struct ToolchainLayout {
     std::string workerFileName;
 };
 
+// A toolchain worker must be an actual file, never a directory that merely
+// shares the worker's name (a nested "byeol/" folder inside a release zip
+// would otherwise be mistaken for the executable and exec'd).
+bool isWorkerFile(const fs::path& path) {
+    std::error_code ec;
+    return fs::is_regular_file(path, ec);
+}
+
 std::string trim(std::string value) {
     auto isSpace = [](unsigned char ch) { return std::isspace(ch) != 0; };
     value.erase(value.begin(), std::find_if_not(value.begin(), value.end(), isSpace));
@@ -169,7 +188,7 @@ public:
             if(!version.empty()) return version;
         }
 
-        if(fs::exists(_layout.bundledWorkerPath)) return "local";
+        if(isWorkerFile(_layout.bundledWorkerPath)) return "local";
 
         auto installed = list();
         if(!installed.empty()) return installed.front().version;
@@ -179,15 +198,15 @@ public:
     fs::path resolveWorkerPath(const std::string& version) const {
         if(version.empty()) return {};
 
-        if(version == "local" && fs::exists(_layout.bundledWorkerPath)) {
+        if(version == "local" && isWorkerFile(_layout.bundledWorkerPath)) {
             return _layout.bundledWorkerPath;
         }
 
         fs::path bundled = _layout.bundledToolchainsDir / version / _layout.workerFileName;
-        if(fs::exists(bundled)) return bundled;
+        if(isWorkerFile(bundled)) return bundled;
 
         fs::path userManaged = _layout.userToolchainsDir / version / _layout.workerFileName;
-        if(fs::exists(userManaged)) return userManaged;
+        if(isWorkerFile(userManaged)) return userManaged;
 
         return {};
     }
@@ -216,7 +235,7 @@ public:
                 activeVersion = trim(activeVersion);
             }
         }
-        if(activeVersion.empty() && fs::exists(_layout.bundledWorkerPath))
+        if(activeVersion.empty() && isWorkerFile(_layout.bundledWorkerPath))
             activeVersion = "local";
 
         auto addEntry = [&](const std::string& version, const fs::path& workerPath, bool bundled) {
@@ -229,7 +248,7 @@ public:
             for(const auto& entry: fs::directory_iterator(_layout.bundledToolchainsDir)) {
                 if(!entry.is_directory()) continue;
                 fs::path worker = entry.path() / _layout.workerFileName;
-                if(!fs::exists(worker)) continue;
+                if(!isWorkerFile(worker)) continue;
                 addEntry(entry.path().filename().string(), worker, true);
             }
         }
@@ -238,7 +257,7 @@ public:
             for(const auto& entry: fs::directory_iterator(_layout.userToolchainsDir)) {
                 if(!entry.is_directory()) continue;
                 fs::path worker = entry.path() / _layout.workerFileName;
-                if(!fs::exists(worker)) continue;
+                if(!isWorkerFile(worker)) continue;
                 addEntry(entry.path().filename().string(), worker, false);
             }
         }
@@ -347,6 +366,17 @@ bool extractZip(const fs::path& zipPath, const fs::path& destDir) {
         }
 
         fs::path dest = destDir / info->filename;
+
+        // Guard against zip-slip: reject entries that escape destDir via "../".
+        const fs::path normalizedRoot = destDir.lexically_normal();
+        const fs::path normalizedDest = dest.lexically_normal();
+        const auto rel = normalizedDest.lexically_relative(normalizedRoot);
+        if(rel.empty() || *rel.begin() == "..") {
+            std::cerr << "unsafe zip entry rejected: " << info->filename << "\n";
+            ok = false;
+            break;
+        }
+
         std::error_code ec;
         fs::create_directories(dest.parent_path(), ec);
         if(ec) {
@@ -414,7 +444,7 @@ int handleInstall(const std::string& version, ToolchainStore& toolchains) {
     }
 
     const fs::path workerPath = installDir / kWorkerExeName;
-    if(!fs::exists(workerPath)) {
+    if(!isWorkerFile(workerPath)) {
         std::cerr << "worker not found after extraction: " << workerPath << "\n";
         return 1;
     }
@@ -755,13 +785,19 @@ int runLauncher(int argc, char** argv) {
 } // namespace
 
 int main(int argc, char** argv) {
+    // Explicit global init keeps curl thread-safe and initializes WinSock on
+    // Windows before any easy handle is created.
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    int rc;
     try {
-        return runLauncher(argc, argv);
+        rc = runLauncher(argc, argv);
     } catch(const std::exception& ex) {
         std::cerr << "launcher error: " << ex.what() << "\n";
-        return 1;
+        rc = 1;
     } catch(...) {
         std::cerr << "launcher error: unknown exception\n";
-        return 1;
+        rc = 1;
     }
+    curl_global_cleanup();
+    return rc;
 }
