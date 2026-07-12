@@ -119,3 +119,6 @@ message(STATUS "flagStacker includes = ${_fs_inc}")
 if((MSVC) AND (MSVC_VERSION GREATER_EQUAL 1914))
     target_compile_options(${exeName} PUBLIC "/Zc:preprocessor")
 endif()
+
+# end-to-end test module (bin/test)
+add_subdirectory(test)
