@@ -8,7 +8,7 @@ if(NOT build_common_included)
     include(buildCommonPre)
 endif()
 
-project(byeol C CXX)
+project(launcher C CXX)
 
 if(NOT build_common_included)
     include(buildCommon)
