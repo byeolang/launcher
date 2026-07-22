@@ -14,7 +14,7 @@ FetchContent_MakeAvailable(indep_dep)
 # flagStacker
 FetchContent_Declare(
     flagStacker_dep
-    SOURCE_SUBDIR module
+    SOURCE_SUBDIR build
     GIT_REPOSITORY https://github.com/byeolang/flagStacker/
     GIT_TAG v0.1.7
     GIT_SHALLOW TRUE)
@@ -103,7 +103,7 @@ message("\tbuilding ${exeName} dependents to ${dependencies}")
 
 # non-recursive on purpose: the launcher sources live at module/ top level;
 # GLOB_RECURSE would also pull in module/test/*.cpp (which needs gtest).
-file(GLOB sources "*.cpp")
+file(GLOB_RECURSE sources "*.cpp")
 foreach(e ${sources})
     message("\tembeding ${e}")
 endforeach(e)

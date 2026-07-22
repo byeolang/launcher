@@ -17,7 +17,7 @@ find_package(Threads REQUIRED)
 set(moduleName "test")
 message("building ${moduleName}...")
 
-file(GLOB_RECURSE sources "*.cpp")
+file(GLOB_RECURSE sources "*.cc")
 foreach(e ${sources})
     message("\tembeding ${e}")
 endforeach(e)
