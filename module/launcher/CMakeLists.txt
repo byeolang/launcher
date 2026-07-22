@@ -2,12 +2,21 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.14)
 
 include(FetchContent) # requires 3.14
 
+# indep:
+FetchContent_Declare(
+    indep_dep
+    SOURCE_SUBDIR build
+    GIT_REPOSITORY https://github.com/byeolang/indep/
+    GIT_TAG v0.1.0
+    GIT_SHALLOW TRUE)
+FetchContent_MakeAvailable(indep_dep)
+
 # flagStacker
 FetchContent_Declare(
     flagStacker_dep
     SOURCE_SUBDIR module
     GIT_REPOSITORY https://github.com/byeolang/flagStacker/
-    GIT_TAG v0.1.6
+    GIT_TAG v0.1.7
     GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(flagStacker_dep)
 
@@ -55,11 +64,20 @@ if(WIN32)
 elseif(APPLE)
     set(CURL_USE_SECTRANSP    ON CACHE BOOL "" FORCE)
 else()
-    # Linux: static-link OpenSSL so the launcher doesn't depend on the target
-    # machine's libssl/libcrypto soname at runtime. Requires libssl-dev (which
-    # ships libssl.a/libcrypto.a) on the build machine.
     set(CURL_USE_OPENSSL      ON CACHE BOOL "" FORCE)
-    set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)
+    if(DEFINED ENV{TERMUX_VERSION} OR EXISTS "/data/data/com.termux/files/usr")
+        # Termux ships only shared OpenSSL libs (.so); static libs (.a) are absent.
+        if(DEFINED ENV{PREFIX} AND NOT "$ENV{PREFIX}" STREQUAL "")
+            set(OPENSSL_ROOT_DIR "$ENV{PREFIX}" CACHE PATH "" FORCE)
+        else()
+            set(OPENSSL_ROOT_DIR "/data/data/com.termux/files/usr" CACHE PATH "" FORCE)
+        endif()
+    else()
+        # Linux: static-link OpenSSL so the launcher doesn't depend on the target
+        # machine's libssl/libcrypto soname at runtime. Requires libssl-dev (which
+        # ships libssl.a/libcrypto.a) on the build machine.
+        set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)
+    endif()
 endif()
 FetchContent_Declare(
     curl_dep
