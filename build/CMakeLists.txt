@@ -12,6 +12,7 @@ project(launcher C CXX)
 
 if(NOT build_common_included)
     include(buildCommon)
+    by_parse_ver("${CMAKE_CURRENT_SOURCE_DIR}/../CHANGELOGS.md")
 endif()
 
 # dependencies check:
