@@ -19,4 +19,13 @@ endif()
 by_check_dependency(NAMES git) # version is nothing matter.
 by_check_dependency(NAMES make MIN_VERSION 3.0.0)
 
+# CMakeLists.txt 예시
+if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+    #set(OPENSSL_ROOT_DIR "C:/Program Files/OpenSSL-Win64")
+else()
+    #set(OPENSSL_ROOT_DIR "/opt/homebrew/opt/openssl@3")
+endif()
+
+find_package(OpenSSL REQUIRED)
+
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../module ${CMAKE_CURRENT_BINARY_DIR}/module)
