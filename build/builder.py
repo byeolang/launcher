@@ -49,7 +49,8 @@ def rmtree(top):
     for root, dirs, files in os.walk(top, topdown=False):
         for name in files:
             filename = os.path.join(root, name)
-            os.chmod(filename, stat.S_IWUSR)
+            if not os.path.islink(filename):
+                os.chmod(filename, stat.S_IWUSR)
             os.remove(filename)
         for name in dirs:
             os.rmdir(os.path.join(root, name))
@@ -302,8 +303,6 @@ def formatCodesWithDocker(showLog):
     if showLog: print("code formatting:")
     for path, dirs, files in os.walk(root):
         if "../module/" not in path: continue
-        if "/worker/bison" in path: continue
-        if "/leaf/parser/bison" in path: continue
         for file in files:
             filePath = os.path.join(path, file) # absolute path
             filePath = f"src/{os.path.relpath(filePath, root)}" # to relative path
@@ -327,7 +326,9 @@ def formatCodesWithDocker(showLog):
     return subprocess.run([sudo, docker.binary, "rm", containerName]).returncode
 
 def prerequisites():
-    if checkDependencies([ClangDependency(), MSBuildDependency(), GitDependency(), PythonDependency(), FlexDependency(), CMakeDependency(), BisonDependency(), ClangTidyDependency(), DockerDependency()]):
+    if checkDependencies([ClangDependency(), MSBuildDependency(), GitDependency(), 
+                          PythonDependency(), CMakeDependency(), ClangTidyDependency(), 
+                          DockerDependency()]):
         return -1
     return 0
 
@@ -722,7 +723,7 @@ def build(incVer, ignore_tidy=False):
     make = MakeDependency()
     git = GitDependency()
 
-    deps = [ClangDependency(), msbuild, git, cmake, BisonDependency(), FlexDependency(), make]
+    deps = [ClangDependency(), msbuild, git, cmake, make]
     if not ignore_tidy:
         deps.append(ClangTidyDependency())
 
@@ -1028,13 +1029,6 @@ class dependency:
         if self.isActivated():
             printOkEnd(self.binary)
 
-class FlexDependency(dependency):
-    def getExpectVer(self):
-        return ver(2, 6, 0, False)
-
-    def getNames(self):
-        return ["flex"]
-
 class PythonDependency(dependency):
     def getExpectVer(self):
         return ver(3, 6, 0, False)
@@ -1077,16 +1071,6 @@ class EmmakeDependency(dependency):
 class EmcmakeDependency(dependency):
     def getNames(self):
         return ["emcmake"]
-
-class BisonDependency(dependency):
-    def getNames(self):
-        return ["bison"]
-
-    def getExpectVer(self):
-        return ver(3, 8, 0, False)
-
-    def onGetInstalledVerString(self, name):
-        return super().onGetInstalledVerString(name).split('\n')[0]
 
 class ClangTidyDependency(dependency):
     def getNames(self):
