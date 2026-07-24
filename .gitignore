@@ -86,3 +86,4 @@ byeol-launcher-pack-codebase-by-repomix.md
 .zip
 .tar.gz
 build/CPack*
+build/__pycache__/
