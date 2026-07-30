@@ -326,9 +326,9 @@ def formatCodesWithDocker(showLog):
     return subprocess.run([sudo, docker.binary, "rm", containerName]).returncode
 
 def prerequisites():
-    if checkDependencies([ClangDependency(), MSBuildDependency(), GitDependency(), 
-                          PythonDependency(), CMakeDependency(), ClangTidyDependency(), 
-                          DockerDependency()]):
+    if checkDependencies([ClangDependency(), MSBuildDependency(), GitDependency(),
+                          PythonDependency(), CMakeDependency(), ClangTidyDependency(),
+                          DockerDependency(), OpenSSLDependency()]):
         return -1
     return 0
 
@@ -1159,6 +1159,19 @@ class GenHtmlDependency(dependency):
 class DockerDependency(dependency):
     def getNames(self):
         return ["docker"]
+
+class OpenSSLDependency(dependency):
+    def getNames(self):
+        return ["openssl"]
+
+    def getExpectVer(self):
+        return ver(1, 1, 0, False)
+
+    def getFlag(self):
+        return "version"
+
+    def isActivated(self):
+        return isWindow() == False
 
 class DockerClangFormatDependency(DockerDependency):
     def __init__(self):
