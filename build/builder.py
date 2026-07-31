@@ -1170,8 +1170,22 @@ class OpenSSLDependency(dependency):
     def getFlag(self):
         return "version"
 
-    def isActivated(self):
-        return isWindow() == False
+    def isValid(self):
+        if isWindow():
+            return "OPENSSL_ROOT_DIR" in os.environ
+        return super().isValid()
+
+    def showErrMsg(self):
+        if isWindow():
+            printErr("OPENSSL_ROOT_DIR is not set (CMake needs it to locate OpenSSL on Windows)")
+            return
+        super().showErrMsg()
+
+    def showSuccessMsg(self):
+        if isWindow():
+            printOkEnd("OPENSSL_ROOT_DIR=" + os.environ.get("OPENSSL_ROOT_DIR", ""))
+            return
+        super().showSuccessMsg()
 
 class DockerClangFormatDependency(DockerDependency):
     def __init__(self):
