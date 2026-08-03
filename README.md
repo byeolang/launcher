@@ -37,7 +37,7 @@ it has following main features.
 
 
 ### Dev. Environment
-> * build: cmake&make, clang, python(for some scripts) + bison
+> * build: cmake&make, clang, python(for some scripts) + bison + OpenSSL 1.1.0+
 > * issue-tracker: github project
 > * unit-test: gtest
 > * road-map: refer http://free-timeline.com/?shared=10593
@@ -49,7 +49,8 @@ it has following main features.
 
 Preparing: to build 'byeol', following softwares will be needed.
 
-    python 3.+, cmake, make, and clang
+    python 3.+, cmake, make, clang, and OpenSSL 1.1.0+ (libssl-dev on Debian/Ubuntu,
+    openssl-devel on RHEL/Fedora, `brew install openssl@3` on macOS)
 
 if you're trying on windows, then it's recommended to use WSL and above softwares.
 
