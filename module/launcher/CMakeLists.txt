@@ -2,14 +2,14 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.14)
 
 include(FetchContent) # requires 3.14
 
-# indep:
+# stela:
 FetchContent_Declare(
-    indep_dep
+    stela_dep
     SOURCE_SUBDIR build
-    GIT_REPOSITORY https://github.com/byeolang/indep/
-    GIT_TAG ab92b17
+    GIT_REPOSITORY https://github.com/byeolang/stela/
+    GIT_TAG v0.1.1 
     GIT_SHALLOW TRUE)
-FetchContent_MakeAvailable(indep_dep)
+FetchContent_MakeAvailable(stela_dep)
 
 # flagStacker
 FetchContent_Declare(
