@@ -1,0 +1,30 @@
+#include "launcher/installer/installer.hpp"
+
+namespace by {
+    BY(DEF_ME(installer))
+
+    vers me::getList() {
+        // TODO: master manifest URL/local 파일 로드 후 vers 구성.
+        return vers();
+    }
+
+    nbool me::install(const verStela& ver) const {
+        // TODO: 실제 다운로드/압축해제 흐름.
+        //       사용자 방침: installer 내부에 여러 downloader 를 두고 상황에 맞는 것을 선택.
+        //       지금은 stub. 항상 실패로 반환하여 호출부의 실패 경로를 검증할 수 있게 한다.
+        (void)ver;
+        return false;
+    }
+
+    downloadRes me::_download(const std::string& url) const {
+        // TODO: downloader 계층으로 위임 예정.
+        (void)url;
+        return downloadRes{};
+    }
+
+    nbool me::_unzip(const std::string& path) const {
+        // TODO: miniz 로 압축 해제.
+        (void)path;
+        return false;
+    }
+}

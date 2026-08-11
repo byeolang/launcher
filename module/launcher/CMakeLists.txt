@@ -7,8 +7,8 @@ FetchContent_Declare(
     stela_dep
     SOURCE_SUBDIR build
     GIT_REPOSITORY https://github.com/byeolang/stela/
-    GIT_TAG v0.1.1 
-    GIT_SHALLOW TRUE)
+    GIT_TAG e5bff1d
+    GIT_SHALLOW FALSE)
 FetchContent_MakeAvailable(stela_dep)
 
 # flagStacker
@@ -115,7 +115,7 @@ endforeach(e)
 add_library(${libName} ${sources})
 target_include_directories(${libName} PRIVATE ${minizip_dep_SOURCE_DIR})
 target_link_libraries(${libName}
-    PRIVATE ${libraries} flagStacker MINIZIP::minizip CURL::libcurl)
+    PRIVATE ${libraries} stela flagStacker MINIZIP::minizip CURL::libcurl)
 install(TARGETS ${libName} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin PERMISSIONS
     OWNER_WRITE OWNER_READ OWNER_EXECUTE
     GROUP_READ GROUP_EXECUTE
@@ -126,7 +126,7 @@ add_executable(${exeName} ${sources})
 set_target_properties(${exeName} PROPERTIES OUTPUT_NAME ${outputName})
 target_include_directories(${exeName} PRIVATE ${minizip_dep_SOURCE_DIR})
 target_link_libraries(${exeName}
-    PRIVATE ${libraries} flagStacker MINIZIP::minizip CURL::libcurl)
+    PRIVATE ${libraries} stela flagStacker MINIZIP::minizip CURL::libcurl)
 install(TARGETS ${exeName} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin PERMISSIONS
     OWNER_WRITE OWNER_READ OWNER_EXECUTE
     GROUP_READ GROUP_EXECUTE
