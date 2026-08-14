@@ -12,11 +12,18 @@
 
 namespace by {
 
-    static constexpr const nchar* CONFIG_NAME = "config.stela";
     static constexpr const nchar* TOOLCHAIN_DIR = "toolchain";
     static constexpr const nchar* KEY_USING_VER = "usingVer";
 
     BY(DEF_ME(launcher))
+
+    ver::ver(nint major, nint minor, nint fix, nbool newIsInstalled, nbool newIsAvailable)
+        : super(major, minor, fix), isInstalled(newIsInstalled), isAvailable(newIsAvailable) {}
+    ver::ver(const std::string& verStr, nbool newIsInstalled, nbool newIsAvailable)
+        : super(verStr), isInstalled(newIsInstalled), isAvailable(newIsAvailable) {}
+    ver::ver(const nchar* verStr, nbool newIsInstalled, nbool newIsAvailable)
+        : super(verStr), isInstalled(newIsInstalled), isAvailable(newIsAvailable) {}
+
 
     // {cwd}/toolchain/<ver>/ 경로.
     static std::string _toolchainPath(const verStela& ver) {
@@ -24,9 +31,7 @@ namespace by {
     }
 
     me::launcher() {
-        // 생성자에서는 WHEN 매크로를 쓸 수 없다 (return-expr 금지).
-        // 대신 plain if 로 조기 종료해 부분 초기화 상태를 남긴다.
-        // 각 실패 지점을 지나면 _chain 은 그대로 null 이라, run 계열만 실패한다.
+        if(!_loadConfig()) return;
 
         // 1. cwd 의 config.stela 를 파싱.
         _config = stelaParser().parseFromFile(CONFIG_NAME);
@@ -49,6 +54,15 @@ namespace by {
         _chain = tstr<toolchain>(new toolchain(dir));
     }
 
+    nbool me::_loadConfig() {
+        _config = stelaParser().parseFromFile("config.stela");
+        WHEN(_config).ret(true);
+
+        auto version = downloadLatest();
+        WHEN_NUL(version).ret(false);
+        return use(*version); // writes config file at this time.
+    }
+
     nbool me::isValid() {
         WHEN_NUL(_chain).ret(false);
         return _chain->isValid();
@@ -65,8 +79,8 @@ namespace by {
     }
 
     const verStela& me::getVer() const {
-        static const verStela DUMMY(0, 0, 0);
-        WHEN_NUL(_chain).ret(DUMMY);
+        static const verStela inner(0, 0, 0);
+        WHEN_NUL(_chain).ret(inner);
         return _chain->getVer();
     }
 

@@ -11,13 +11,20 @@
 namespace by {
 
     class stela;
-    typedef std::vector<verStela> vers;
+    class _nout ver: public verStela {
+        BY(CLASS(ver, verStela))
 
-    // launcher.list() 결과. 설치된 버전과 다운로드 가능한 버전을 함께 담는다.
-    struct _nout listResult {
-        vers installed;   // {cwd}/toolchain/<ver>/ 에 실제 존재하는 버전들
-        vers available;   // installer 를 통해 원격에서 받아올 수 있는 버전들
+    public:
+        ver(nint major, nint minor, nint fix, nbool newIsInstalled, nbool newIsAvailable);
+        ver(const std::string& verStr, nbool newIsInstalled, nbool newIsAvailable);
+        ver(const nchar* verStr, nbool newIsInstalled, nbool newIsAvailable);
+
+    public:
+        nbool isInstalled;
+        nbool isAvailable;
     };
+
+    typedef std::vector<ver> vers;
 
     // launcher는 하나의 프로세스에서 하나의 toolchain 만 가리킨다.
     // 사용자가 `use` 로 활성 버전을 바꾸거나 `install` 로 새 버전을 받는 것은
@@ -59,14 +66,15 @@ namespace by {
 
         // 설치된 목록: {cwd}/toolchain/ 서브디렉토리 스캔.
         // 다운로드가능 목록: installer 에게 조회.
-        listResult list() const;
+        vers downloadVers() const;
+        tstr<verStela> downloadLatest();
 
         const type& getType() const override;
 
     private:
-        // cwd 의 config.stela 를 파싱한 결과. usingVer 필드가 여기 들어있다.
-        // use() 로 값이 바뀌면 이걸 통해 다시 파일로 저장한다.
-        // TODO: stela serialize API 미존재. 지금은 use() 저장 로직이 stub.
+        nbool _loadConfig();
+
+    private:
         tstr<stela> _config;
 
         // 활성 toolchain. usingVer 가 없거나 해당 폴더가 없으면 null.
