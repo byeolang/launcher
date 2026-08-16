@@ -12,8 +12,9 @@
 
 namespace by {
 
-    static constexpr const nchar* TOOLCHAIN_DIR = "toolchain";
+    static const std::string TOOLCHAIN_DIR = "toolchain";
     static constexpr const nchar* KEY_USING_VER = "usingVer";
+    static constexpr const nchar* CONFIG_FILENAME = "config.stela";
 
     BY(DEF_ME(launcher))
 
@@ -26,40 +27,27 @@ namespace by {
 
 
     // {cwd}/toolchain/<ver>/ 경로.
-    static std::string _toolchainPath(const verStela& ver) {
-        return std::string(TOOLCHAIN_DIR) + "/" + ver.asStr();
+    namespace {
+        static std::string _getToolchainPath(const verStela& ver) {
+            return TOOLCHAIN_DIR + "/" + ver.asStr();
+        }
     }
 
     me::launcher() {
         if(!_loadConfig()) return;
-
-        // 1. cwd 의 config.stela 를 파싱.
-        _config = stelaParser().parseFromFile(CONFIG_NAME);
-        if(!_config) return;
-
-        // 2. usingVer 로부터 활성 버전을 얻는다.
-        const stela& node = _config->sub(KEY_USING_VER);
-        if(!node) return;
-
-        const std::string& verStr = node.asStr();
-        if(verStr.empty()) return;
-
-        verStela using_(verStr);
-
-        // 3. 해당 toolchain 폴더에서 toolchain 을 구성.
-        const std::string dir = _toolchainPath(using_);
-        std::error_code ec;
-        if(!std::filesystem::exists(dir, ec) || ec) return;
-
-        _chain = tstr<toolchain>(new toolchain(dir));
+        _chain = tstr<toolchain>(new toolchain(_getToolchainPath(getVer())));
     }
 
+    // try to load config.stela file and if not exist, assume that this first app starting.
+    // so download latest version and use it.
     nbool me::_loadConfig() {
-        _config = stelaParser().parseFromFile("config.stela");
+        _config = stelaParser().parseFromFile(CONFIG_FILENAME);
         WHEN(_config).ret(true);
 
         auto version = downloadLatest();
-        WHEN_NUL(version).ret(false);
+        WHEN_NUL(version).err(
+            "it seems that this is first app starting so tried to download "
+            "latest toolchains but failed to download. please check your network.").ret(false);
         return use(*version); // writes config file at this time.
     }
 
@@ -91,30 +79,32 @@ namespace by {
     }
 
     nbool me::use(const verStela& ver) {
-        // 1. {cwd}/toolchain/<ver>/ 존재 확인.
-        const std::string dir = _toolchainPath(ver);
-        std::error_code ec;
-        WHEN(!std::filesystem::exists(dir, ec) || ec)
+        WHEN(fsystem::find(_getToolchainPath(ver)).isEnd())
             .err("toolchain not installed; run `install <ver>` first.").ret(false);
+        WHEN(!_config).err("%s not loaded; run `use <ver>` first.", CONFIG_FILENAME).ret(false);
 
-        // 2. config.stela 가 없으면 새 stela 를 만든다.
-        if(!_config) _config = tstr<stela>(new stela());
+        _config->add(new valStela(ver, KEY_USING_VER));
+        return stelaWriter().writeFile(*_config, CONFIG_FILENAME);
+    }
 
-        // 3. usingVer 필드를 교체.
-        _config->del(KEY_USING_VER);
-        _config->add(new valStela(ver.asStr(), KEY_USING_VER));
-
-        // 4. 파일로 저장.
-        //    TODO: stela serialize API 미존재. 준비되면 여기서 config.stela 로 다시 쓴다.
-        //          plain text 로 usingVer 라인만 쓰는 fallback 은 config 확장 시 깨지므로 피한다.
-        return true;
+    tstr<verStela> me::downloadLatest() {
+        auto list = getAllVers();
+        installer inst;
+        return inst.getLatest();
     }
 
     const type& me::getType() const { return ttype<me>::get(); }
 
-    listResult me::list() const {
-        listResult r;
+    vers me::_downloadVers() const {
+    }
 
+    vers me::getAllVers() const {
+        auto versions = _downloadVers();
+
+        auto e = fsystem::find(TOOLCHAIN_DIR + "/*.stela");
+        while(e.next()) {
+            
+        }
         // 1. 설치된 목록: {cwd}/toolchain/* 서브디렉토리 열거.
         //    파일 단위 탐색용인 fsystem::find 대신 std::filesystem 을 사용 (디렉토리 열거).
         std::error_code ec;

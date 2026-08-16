@@ -3,14 +3,10 @@
 #include "launcher/common.hpp"
 #include "launcher/toolchain/toolable.hpp"
 #include "launcher/toolchain/toolchain.hpp"
-
-#include <stela/ast/verStela.hpp>
-
 #include <vector>
 
 namespace by {
 
-    class stela;
     class _nout ver: public verStela {
         BY(CLASS(ver, verStela))
 
@@ -66,13 +62,15 @@ namespace by {
 
         // 설치된 목록: {cwd}/toolchain/ 서브디렉토리 스캔.
         // 다운로드가능 목록: installer 에게 조회.
-        vers downloadVers() const;
+        vers getAllVers() const;
         tstr<verStela> downloadLatest();
 
         const type& getType() const override;
 
     private:
         nbool _loadConfig();
+        /// @return empty vers array if no download available.
+        vers _downloadVers() const;
 
     private:
         tstr<stela> _config;
