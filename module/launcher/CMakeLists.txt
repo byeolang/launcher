@@ -7,7 +7,7 @@ FetchContent_Declare(
     stela_dep
     SOURCE_SUBDIR build
     GIT_REPOSITORY https://github.com/byeolang/stela/
-    GIT_TAG 05ad671
+    GIT_TAG 3d39295
     GIT_SHALLOW FALSE)
 FetchContent_MakeAvailable(stela_dep)
 
