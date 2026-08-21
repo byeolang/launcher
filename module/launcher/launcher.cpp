@@ -88,7 +88,7 @@ namespace by {
     }
 
     tstr<verStela> me::downloadLatest() {
-        auto list = getAllVers();
+        auto versions = _downloadVers();
         installer inst;
         return inst.getLatest();
     }
@@ -103,22 +103,9 @@ namespace by {
 
         auto e = fsystem::find(TOOLCHAIN_DIR + "/*.stela");
         while(e.next()) {
-            
+            auto verName = e.getDir().filename();
+            versions[verName] = ver(verName, true, false);
         }
-        // 1. 설치된 목록: {cwd}/toolchain/* 서브디렉토리 열거.
-        //    파일 단위 탐색용인 fsystem::find 대신 std::filesystem 을 사용 (디렉토리 열거).
-        std::error_code ec;
-        if(std::filesystem::exists(TOOLCHAIN_DIR, ec) && !ec) {
-            for(auto& e: std::filesystem::directory_iterator(TOOLCHAIN_DIR, ec)) {
-                if(ec) break;
-                if(!e.is_directory()) continue;
-                r.installed.emplace_back(verStela(e.path().filename().string()));
-            }
-        }
-
-        // 2. 다운로드 가능 목록: installer 에게 조회.
-        installer inst;
-        r.available = inst.getList();
-        return r;
+        return versions;
     }
 }

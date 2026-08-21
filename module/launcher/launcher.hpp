@@ -20,7 +20,7 @@ namespace by {
         nbool isAvailable;
     };
 
-    typedef std::vector<ver> vers;
+    typedef std::map<std::string, ver> vers;
 
     // launcher는 하나의 프로세스에서 하나의 toolchain 만 가리킨다.
     // 사용자가 `use` 로 활성 버전을 바꾸거나 `install` 로 새 버전을 받는 것은
