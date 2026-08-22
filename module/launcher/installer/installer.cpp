@@ -19,11 +19,12 @@ namespace by {
     }
 
     downloadRes me::_download(const std::string& url) const {
-        // TODO: 파일로 받아야 하는 toolchain zip은 curl::download()로 따로 태운다.
-        //       지금은 manifest처럼 메모리로 받는 경우만 다룬다.
+        // TODO: put the toolchain zip, which has to land on a file, through
+        //       curl::download(). this only covers receiving into memory like a
+        //       manifest for now.
         curl session;
         downloadRes res;
-        res.ok = session.get(url, res.data);
+        res.ok = session.downloadAsStr(url, res.data);
         return res;
     }
 
