@@ -159,6 +159,12 @@ def _cleanParser():
 
     printOk("done")
 
+def _unsetDocbotIdentity(git):
+    # _publishDoc() puts autodocbot on the local config of the gh-pages clone.
+    # drop it here so it never outlives that commit.
+    system(f"{git.binary} config --unset user.name") # remove local config only
+    system(f"{git.binary} config --unset user.email")
+
 def _cleanIntermediates():
     printInfoEnd("removing intermediate outputs...")
     if isWindow():
@@ -168,8 +174,6 @@ def _cleanIntermediates():
     else:
         system("rm -rf " + cwd + "/xml")
         system("rm -rf " + cwd + "/*.tmp")
-    system("git config --unset user.name") # remove local config only
-    system("git config --unset user.email")
     printOk("done.")
     _cleanCoverageFiles()
 
@@ -348,6 +352,8 @@ def _publishDoc():
     if res != 0:
         printErr("fail to commit on gh-pages.")
         printInfo("but it seems that nothing changed.")
+        _unsetDocbotIdentity(git)
+        os.chdir(cwd)
         _cleanIntermediates()
         return 0
 
@@ -360,6 +366,7 @@ def _publishDoc():
     else:
         printErr("WARNING: couldn't get token.")
 
+    _unsetDocbotIdentity(git)
     os.chdir(cwd)
     _cleanIntermediates()
     return 0
