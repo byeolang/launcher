@@ -1,5 +1,8 @@
 #pragma once
 
+// launcher/common.hpp has to come first. it defines WIN32_LEAN_AND_MEAN, which
+// keeps <windows.h> from pulling in the legacy <winsock.h> and clashing with the
+// <winsock2.h> that <curl/curl.h> includes on windows.
 #include "launcher/common.hpp"
 
 #include <curl/curl.h>
