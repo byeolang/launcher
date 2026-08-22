@@ -1,5 +1,7 @@
 #include "launcher/installer/installer.hpp"
 
+#include "launcher/installer/curl.hpp"
+
 namespace by {
     BY(DEF_ME(installer))
 
@@ -17,9 +19,12 @@ namespace by {
     }
 
     downloadRes me::_download(const std::string& url) const {
-        // TODO: downloader 계층으로 위임 예정.
-        (void)url;
-        return downloadRes{};
+        // TODO: 파일로 받아야 하는 toolchain zip은 curl::download()로 따로 태운다.
+        //       지금은 manifest처럼 메모리로 받는 경우만 다룬다.
+        curl session;
+        downloadRes res;
+        res.ok = session.get(url, res.data);
+        return res;
     }
 
     nbool me::_unzip(const std::string& path) const {
