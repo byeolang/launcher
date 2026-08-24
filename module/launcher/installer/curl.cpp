@@ -5,12 +5,24 @@
 
 namespace by {
 
-    // default limit for 1 transfer, in seconds. a toolchain zip is tens of MB.
-    static constexpr nint DEFAULT_TIMEOUT = 300;
-
-    // separate limit for the connection only, in seconds. it cuts off a server that
-    // never answers instead of waiting out DEFAULT_TIMEOUT.
+    // limit for the connection only, in seconds. it cuts off a server that never
+    // answers before a single byte is on the wire.
     static constexpr nint CONNECT_TIMEOUT = 15;
+
+    // a transfer gives up once its average speed stays under LOW_SPEED_LIMIT bytes
+    // per second for LOW_SPEED_TIME seconds.
+    //
+    // there is deliberately no limit on how long a transfer may take in total. a
+    // toolchain zip is tens of MB, so any wall clock cap that is short enough to
+    // catch a dead server also kills a slow link that is doing nothing wrong. what
+    // we actually want to detect is a transfer that stopped moving, and that is what
+    // these two options measure. curl's own documentation for CURLOPT_TIMEOUT points
+    // here for the same reason.
+    //
+    // the speed is averaged over the window, so a short hiccup inside 30s of healthy
+    // throughput doesn't trip it. only a genuine stall does.
+    static constexpr nint LOW_SPEED_LIMIT = 1024;
+    static constexpr nint LOW_SPEED_TIME = 30;
 
     // the github API rejects a request without a User-Agent with 403.
     static constexpr const nchar* USER_AGENT = "byeol-launcher";
@@ -47,7 +59,7 @@ namespace by {
         }
     }
 
-    me::curl(): _handle(nullptr), _timeout(DEFAULT_TIMEOUT) {
+    me::curl(): _handle(nullptr) {
         // a ctor can't use the WHEN macro. isValid() reports a failed handle instead.
         _initGlobal();
         _handle = curl_easy_init();
@@ -57,68 +69,55 @@ namespace by {
 
     nbool me::isValid() const { return _handle != nullptr; }
 
-    nbool me::downloadAsStr(const std::string& url, std::string& out) {
-        out.clear();
-        WHEN(!isValid()).err("curl handle isn't ready.").ret(false);
+    me::res me::downloadAsStr(const std::string& url) {
+        WHEN(!isValid()).err("curl handle isn't ready.").ret(res(CURLE_FAILED_INIT));
 
-        _setupCommon(url);
-        curl_easy_setopt(_handle, CURLOPT_WRITEFUNCTION, _onWriteToStr);
-        curl_easy_setopt(_handle, CURLOPT_WRITEDATA, &out);
-        WHEN(_run()).ret(true);
-
-        // leaving the head of a failed transfer makes the caller take it for a whole
-        // response.
-        out.clear();
-        return false;
+        std::string out;
+        // the head of a cut transfer stays on out and gets dropped with it. handing
+        // it over would make the caller take it for a whole response.
+        CURLcode code = _run(url, _onWriteToStr, &out);
+        WHEN(code != CURLE_OK).ret(res(code));
+        return res(out);
     }
 
-    nbool me::download(const std::string& url, const std::string& path) {
-        WHEN(!isValid()).err("curl handle isn't ready.").ret(false);
+    me::res me::downloadAsFile(const std::string& url, const std::string& path) {
+        WHEN(!isValid()).err("curl handle isn't ready.").ret(res(CURLE_FAILED_INIT));
 
         std::ofstream file(path, std::ios::binary);
-        WHEN(!file).err("failed to open %s to write.", path.c_str()).ret(false);
+        WHEN(!file).err("failed to open %s to write.", path.c_str()).ret(res(CURLE_WRITE_ERROR));
 
-        _setupCommon(url);
-        curl_easy_setopt(_handle, CURLOPT_WRITEFUNCTION, _onWriteToFile);
-        curl_easy_setopt(_handle, CURLOPT_WRITEDATA, &file);
-        WHEN(_run()).ret(true);
+        CURLcode code = _run(url, _onWriteToFile, &file);
+        // the buffered tail is still on its way out, and losing it leaves the file
+        // short just like a cut transfer does. windows also can't remove an open
+        // file, so closing here covers the removal below too.
+        file.close();
+        if(code == CURLE_OK && !file) code = CURLE_WRITE_ERROR;
+        WHEN(code == CURLE_OK).ret(res(path));
 
         // leaving a half received file makes the next run take it for a whole one.
-        // windows can't remove an open file, so it closes first.
-        file.close();
         std::error_code ec;
         std::filesystem::remove(path, ec);
-        return false;
+        return res(code);
     }
 
-    const std::string& me::getErr() const { return _err; }
-
-    void me::setTimeout(nint sec) { _timeout = sec; }
-
-    nint me::getTimeout() const { return _timeout; }
-
-    void me::_setupCommon(const std::string& url) {
-        _err.clear();
-
+    CURLcode me::_run(const std::string& url, curl_write_callback onWrite, void* sink) {
         curl_easy_setopt(_handle, CURLOPT_URL, url.c_str());
         // a github release redirects to another host to serve the real file.
         curl_easy_setopt(_handle, CURLOPT_FOLLOWLOCATION, 1L);
         // without this the body of a 404 gets stored as if it were real content.
         curl_easy_setopt(_handle, CURLOPT_FAILONERROR, 1L);
-        // keeps the timeout off signals. it makes calling from a thread safe.
+        // keeps the timeouts off signals. it makes calling from a thread safe.
         curl_easy_setopt(_handle, CURLOPT_NOSIGNAL, 1L);
-        curl_easy_setopt(_handle, CURLOPT_TIMEOUT, (long) _timeout);
         curl_easy_setopt(_handle, CURLOPT_CONNECTTIMEOUT, (long) CONNECT_TIMEOUT);
+        curl_easy_setopt(_handle, CURLOPT_LOW_SPEED_LIMIT, (long) LOW_SPEED_LIMIT);
+        curl_easy_setopt(_handle, CURLOPT_LOW_SPEED_TIME, (long) LOW_SPEED_TIME);
         curl_easy_setopt(_handle, CURLOPT_USERAGENT, USER_AGENT);
-    }
+        curl_easy_setopt(_handle, CURLOPT_WRITEFUNCTION, onWrite);
+        curl_easy_setopt(_handle, CURLOPT_WRITEDATA, sink);
 
-    nbool me::_run() {
-        CURLcode res = curl_easy_perform(_handle);
-        WHEN(res == CURLE_OK).ret(true);
-
-        _err = curl_easy_strerror(res);
-        BY_E("transfer failed: %s", _err.c_str());
-        return false;
+        CURLcode code = curl_easy_perform(_handle);
+        WHEN(code != CURLE_OK).err("transfer failed: %s", curl_easy_strerror(code)).ret(code);
+        return code;
     }
 
     void me::_rel() {
