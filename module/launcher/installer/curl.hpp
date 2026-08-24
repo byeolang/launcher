@@ -16,15 +16,21 @@ namespace by {
     // libcurl makes the caller drive the whole sequence by hand: create the handle,
     // set the options, perform the transfer, then clean it up. curl_global_init()
     // also has to be called once somewhere in the process. this class takes over
-    // that lifetime management and leaves only downloadAsStr() and download().
+    // that lifetime management and leaves only downloadAsStr() and downloadAsFile().
     //
     // ```cpp
     //  curl c;
-    //  std::string manifest;
-    //  WHEN(!c.downloadAsStr(url, manifest)).err("%s", c.getErr().c_str()).ret(false);
+    //  curl::res manifest = c.downloadAsStr(url);
+    //  WHEN(!manifest.has()).err("%s", curl_easy_strerror(manifest.getErr())).ret(false);
     // ```
     class _nout curl {
         BY(ME(curl))
+
+    public:
+        // what 1 transfer gave back. it carries the received content when it worked
+        // and the reason it stopped when it didn't, so a failure can't outlive the
+        // call that made it. curl_easy_strerror() turns the error into a message.
+        typedef tres<std::string, CURLcode> res;
 
     public:
         curl();
@@ -38,35 +44,24 @@ namespace by {
         // whether the handle was acquired. every transfer fails when this is false.
         nbool isValid() const;
 
-        // receives the content of url into out. used for small files like a manifest.
-        // out is left empty when it fails.
-        nbool downloadAsStr(const std::string& url, std::string& out);
+        // receives the content of url. used for small files like a manifest.
+        res downloadAsStr(const std::string& url);
 
         // receives the content of url into the file at path. used for big files like
-        // a toolchain zip. the partial file is removed when it fails, so path exists
-        // only on success.
-        nbool download(const std::string& url, const std::string& path);
-
-        // why the last transfer failed. empty when it succeeded.
-        const std::string& getErr() const;
-
-        // seconds allowed for 1 transfer. 0 means unlimited.
-        void setTimeout(nint sec);
-        nint getTimeout() const;
+        // a toolchain zip, and gives path back once the file is whole. the partial
+        // file is removed when it fails, so path exists only on success.
+        res downloadAsFile(const std::string& url, const std::string& path);
 
     private:
-        // puts url and the options shared by every transfer on the handle. the caller
-        // only has to set the write callback on top of it.
-        void _setupCommon(const std::string& url);
-
-        // runs curl_easy_perform() and leaves the failure reason on _err.
-        nbool _run();
+        // wires url, the options shared by every transfer and the given sink onto the
+        // handle, runs the transfer, then logs the reason when it fails. the sink is
+        // all that separates one transfer from another, so it's the only thing the
+        // two download functions have to bring.
+        CURLcode _run(const std::string& url, curl_write_callback onWrite, void* sink);
 
         void _rel();
 
     private:
         CURL* _handle;
-        std::string _err;
-        nint _timeout;
     };
 }

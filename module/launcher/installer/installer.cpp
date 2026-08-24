@@ -20,11 +20,14 @@ namespace by {
 
     downloadRes me::_download(const std::string& url) const {
         // TODO: put the toolchain zip, which has to land on a file, through
-        //       curl::download(). this only covers receiving into memory like a
-        //       manifest for now.
+        //       curl::downloadAsFile(). this only covers receiving into memory like
+        //       a manifest for now.
         curl session;
+        curl::res got = session.downloadAsStr(url);
+
         downloadRes res;
-        res.ok = session.downloadAsStr(url, res.data);
+        res.ok = got.has();
+        if(res.ok) res.data = *got;
         return res;
     }
 
