@@ -5,22 +5,13 @@
 
 namespace by {
 
-    // limit for the connection only, in seconds. it cuts off a server that never
-    // answers before a single byte is on the wire.
+    // cuts off a server that never answers before a single byte is on the wire.
     static constexpr nint CONNECT_TIMEOUT = 15;
 
-    // a transfer gives up once its average speed stays under LOW_SPEED_LIMIT bytes
-    // per second for LOW_SPEED_TIME seconds.
-    //
-    // there is deliberately no limit on how long a transfer may take in total. a
-    // toolchain zip is tens of MB, so any wall clock cap that is short enough to
-    // catch a dead server also kills a slow link that is doing nothing wrong. what
-    // we actually want to detect is a transfer that stopped moving, and that is what
-    // these two options measure. curl's own documentation for CURLOPT_TIMEOUT points
-    // here for the same reason.
-    //
-    // the speed is averaged over the window, so a short hiccup inside 30s of healthy
-    // throughput doesn't trip it. only a genuine stall does.
+    // a transfer gives up once its average speed stays under LOW_SPEED_LIMIT bytes per
+    // second for LOW_SPEED_TIME seconds. the total time is left uncapped on purpose: a
+    // toolchain zip is tens of MB, so any wall clock cap short enough to catch a dead
+    // server also kills a slow link that is doing nothing wrong.
     static constexpr nint LOW_SPEED_LIMIT = 1024;
     static constexpr nint LOW_SPEED_TIME = 30;
 
@@ -30,9 +21,8 @@ namespace by {
     BY(DEF_ME(curl))
 
     namespace {
-        // curl_global_init() is needed once per process. it initializes when the first
-        // curl object is made and cleans up when the program ends. a function local
-        // static makes the compiler guarantee that it happens only once.
+        // curl_global_init() is needed once per process. a function local static makes
+        // the compiler guarantee that it happens only once.
         class globalCurl {
         public:
             globalCurl() { curl_global_init(CURL_GLOBAL_DEFAULT); }
@@ -41,16 +31,14 @@ namespace by {
 
         void _initGlobal() { static globalCurl inner; }
 
-        // appends the received bytes to the string.
         std::size_t _onWriteToStr(nchar* ptr, std::size_t size, std::size_t nmemb, void* out) {
             std::string* dest = (std::string*) out;
             dest->append(ptr, size * nmemb);
             return size * nmemb;
         }
 
-        // writes the received bytes to the file. when writing fails, like on a full
-        // disk, it returns a length different from the consumed one to make curl
-        // abort the transfer.
+        // returning a length different from the consumed one is what makes curl abort
+        // the transfer, like on a full disk.
         std::size_t _onWriteToFile(nchar* ptr, std::size_t size, std::size_t nmemb, void* out) {
             std::ofstream* dest = (std::ofstream*) out;
             dest->write(ptr, (std::streamsize) (size * nmemb));
@@ -72,9 +60,9 @@ namespace by {
     me::res me::downloadAsStr(const std::string& url) {
         WHEN(!isValid()).err("curl handle isn't ready.").ret(res(CURLE_FAILED_INIT));
 
+        // the head of a cut transfer stays on out and gets dropped with it. handing it
+        // over would make the caller take it for a whole response.
         std::string out;
-        // the head of a cut transfer stays on out and gets dropped with it. handing
-        // it over would make the caller take it for a whole response.
         CURLcode code = _run(url, _onWriteToStr, &out);
         WHEN(code != CURLE_OK).ret(res(code));
         return res(out);
@@ -87,9 +75,9 @@ namespace by {
         WHEN(!file).err("failed to open %s to write.", path.c_str()).ret(res(CURLE_WRITE_ERROR));
 
         CURLcode code = _run(url, _onWriteToFile, &file);
-        // the buffered tail is still on its way out, and losing it leaves the file
-        // short just like a cut transfer does. windows also can't remove an open
-        // file, so closing here covers the removal below too.
+        // the buffered tail is still on its way out, and losing it leaves the file short
+        // just like a cut transfer does. windows also can't remove an open file, so
+        // closing here covers the removal below too.
         file.close();
         if(code == CURLE_OK && !file) code = CURLE_WRITE_ERROR;
         WHEN(code == CURLE_OK).ret(res(path));
