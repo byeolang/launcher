@@ -101,9 +101,15 @@ endforeach(d)
 
 message("\tbuilding ${exeName} dependents to ${dependencies}")
 
-# non-recursive on purpose: the launcher sources live at module/ top level;
-# GLOB_RECURSE would also pull in module/test/*.cpp (which needs gtest).
+# this glob stays inside module/launcher/, so the tests under module/test/ (which
+# need gtest) are out of its reach.
 file(GLOB_RECURSE sources "*.cpp")
+
+# main() belongs to the executable alone. a test binary brings its own main from
+# gtest_main, so a launcherLib carrying a second one makes every test that links
+# it fail with a duplicate symbol.
+set(libSources ${sources})
+list(REMOVE_ITEM libSources "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 foreach(e ${sources})
     message("\tembeding ${e}")
 endforeach(e)
@@ -112,7 +118,7 @@ foreach(e ${dependencies})
 endforeach(e)
 
 # test-facing static library of the launcher logic
-add_library(${libName} ${sources})
+add_library(${libName} ${libSources})
 target_include_directories(${libName} PRIVATE ${minizip_dep_SOURCE_DIR})
 target_link_libraries(${libName}
     PRIVATE ${libraries} stela flagStacker MINIZIP::minizip CURL::libcurl)
