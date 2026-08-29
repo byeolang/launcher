@@ -1,8 +1,6 @@
 #pragma once
 
-// the fake libcurl this binary links in place of the real one. curl.cpp compiles
-// untouched; the linker resolves its curl_easy_* symbols to the definitions in
-// curlMock.cc, which forward to the curlMock bound for the running test.
+// the fake libcurl this binary links in place of the real one.
 #include "launcher/installer/curl.hpp"
 
 #include <gmock/gmock.h>
@@ -11,11 +9,7 @@
 
 namespace by {
 
-    /**
-     * @brief every option one transfer was configured with
-     * @details curl::_run() pushes these through curl_easy_setopt(), so a test
-     *          reads back what the wrapper asked for instead of watching the wire.
-     */
+    /** @brief every option one transfer was configured with. */
     struct curlOpts {
         std::string url;
         std::string userAgent;
@@ -31,8 +25,7 @@ namespace by {
 
     /**
      * @brief the seam the faked curl_easy_* functions delegate to
-     * @details the fakes are free functions and can't carry expectations, so they
-     *          forward to the instance bound by scopedCurlMock.
+     * @details free functions can't carry expectations, so they forward here.
      */
     class curlMock {
     public:
@@ -42,12 +35,8 @@ namespace by {
 
     public:
         /**
-         * @brief hands content to the write callback curl.cpp registered
-         * @details what makes a faked perform() look like a real transfer: the
-         *          sink fills exactly as libcurl would fill it. call it from an
-         *          easyPerform() action to model a transfer that received data.
-         * @return whether the callback took all of it, which is how libcurl
-         *         decides a sink refused the write.
+         * @brief feeds content to the write callback, as a real transfer would
+         * @return whether the callback took all of it.
          */
         nbool pump(const std::string& content);
 
@@ -56,12 +45,11 @@ namespace by {
         curlOpts opts;
 
     public:
-        // the fakes are free functions, so they need one well known place to look.
         static void bind(curlMock* mock);
         static curlMock* get();
     };
 
-    /** @brief the handle curl_easy_init() hands out when a test lets it succeed. */
+    /** @brief the handle curl_easy_init() hands out on success. */
     CURL* aCurlHandle();
 
     /** @brief binds a mock for one test and unbinds it on the way out. */
