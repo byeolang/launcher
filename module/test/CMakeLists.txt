@@ -24,18 +24,11 @@ endforeach(e)
 
 add_executable(${moduleName} ${sources})
 
-# launcherLib is the launcher's own sources minus main(), so this binary keeps
-# the main() gtest_main brings.
-#
-# mock/curlMock.cc defines the curl_easy_* functions itself. it reaches the
-# linker as an object file while the real libcurl arrives as an archive behind
-# launcherLib, and an object file is always taken over an archive member, so
-# curl.cpp -- compiled untouched -- runs against the fake here and against the
-# real libcurl in the shipped binary.
+# mock/curlMock.cc reaches the linker as an object file and libcurl as an archive
+# behind launcherLib, so the fake wins and curl.cpp runs against it unmodified.
 target_link_libraries(${moduleName}
     PRIVATE launcherLib GTest::gmock GTest::gtest_main Threads::Threads)
 
-# so the tests can say #include "mock/curlMock.hpp".
 target_include_directories(${moduleName} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 include(GoogleTest)

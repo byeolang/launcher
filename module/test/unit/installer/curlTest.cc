@@ -1,7 +1,5 @@
-// curl talks to libcurl and nothing else, so these run against a faked libcurl
-// (module/test/mock/) rather than the network. what is under test is the
-// wrapper: the options it configures, the tres it returns, and what it leaves
-// behind when a transfer fails.
+// run against the faked libcurl in module/test/mock/, not the network. what is
+// under test is the wrapper: its options, its tres, and what it leaves on disk.
 #include "mock/curlMock.hpp"
 
 #include <filesystem>
@@ -97,8 +95,7 @@ TEST_F(curlTest, testDownloadAsStrAppendsEveryChunk) {
 TEST_F(curlTest, testDownloadAsStrDropsPartialContentOnFailure) {
     scopedCurlMock mock;
     _expectHandleLifecycle(mock);
-    // a cut transfer still wrote its head. handing that back would let a caller
-    // take it for a whole response.
+    // a cut transfer still wrote its head; returning it would look whole.
     EXPECT_CALL(*mock, easyPerform(aCurlHandle())).WillOnce([&mock](CURL*) {
         mock->pump("half a manifes");
         return CURLE_PARTIAL_FILE;
@@ -119,8 +116,7 @@ TEST_F(curlTest, testGuardsTransferByStallNotByTotalTime) {
     curl session;
     session.downloadAsStr("https://byeol.io/manifest");
 
-    // a toolchain zip is tens of MB, so a wall clock cap short enough to catch a
-    // dead server would also kill a slow link. the stall guard is what cuts.
+    // a wall clock cap tight enough for a dead server would kill a slow link too.
     ASSERT_EQ(mock->opts.lowSpeedLimit, 1024);
     ASSERT_EQ(mock->opts.lowSpeedTime, 30);
     ASSERT_EQ(mock->opts.connectTimeout, 15);
@@ -242,7 +238,7 @@ TEST_F(curlTest, testDownloadAsFileRemovesPartialFileOnFailure) {
 
     ASSERT_FALSE(got.has());
     ASSERT_EQ(got.getErr(), CURLE_PARTIAL_FILE);
-    // leaving it behind makes the next run take a half received file for a whole one.
+    // leaving it behind makes the next run mistake it for a complete file.
     ASSERT_FALSE(filesystem::exists(path));
 }
 

@@ -7,7 +7,7 @@ namespace by {
     namespace {
         curlMock* _bound = nullptr;
 
-        // CURL is opaque to curl.cpp, so an address is all a handle has to be.
+        // CURL is opaque, so an address is all a handle has to be.
         nint _handle = 0;
     }
 
@@ -18,8 +18,7 @@ namespace by {
     nbool curlMock::pump(const std::string& content) {
         if(!opts.onWrite) return false;
 
-        // libcurl calls the callback with (size, nmemb); a size of 1 makes nmemb
-        // the byte count, which is what it does for a received body.
+        // a size of 1 makes nmemb the byte count, as libcurl does for a body.
         std::size_t took = opts.onWrite((nchar*) content.data(), 1, content.size(), opts.sink);
         return took == content.size();
     }
@@ -29,9 +28,7 @@ namespace by {
 
 // ---- the fake libcurl ------------------------------------------------------
 //
-// these carry the signatures from <curl/easy.h> so the linker takes them for the
-// real thing. an object file wins over an archive member, so these are picked
-// even while the real libcurl sits on the link line.
+// the signatures match <curl/easy.h> so the linker takes these for the real thing.
 
 extern "C" {
 
@@ -56,19 +53,13 @@ extern "C" {
         if(mock) mock->easyCleanup(handle);
     }
 
-    const char* curl_easy_strerror(CURLcode code) {
-        // the launcher only ever prints this, so a stable string is enough.
-        return code == CURLE_OK ? "ok" : "faked curl error";
-    }
+    const char* curl_easy_strerror(CURLcode code) { return code == CURLE_OK ? "ok" : "faked curl error"; }
 
-    // gmock can't take a va_list, so each option is unpacked here and only the
-    // value it actually carries lands on curlOpts.
+    // gmock can't take a va_list, so each option is unpacked here.
     //
-    // the signature has to match <curl/easy.h> exactly for the linker to accept
-    // this in libcurl's place, which puts an enum last before the ellipsis.
-    // va_start() on a type that undergoes default argument promotion is formally
-    // undefined, and the project builds with -Werror, so the diagnostic is turned
-    // off for just this function -- every libcurl caller relies on the same thing.
+    // the signature must match libcurl's, which puts an enum before the ellipsis.
+    // va_start() on a promoted type is formally undefined, so -Werror needs the
+    // diagnostic off here.
 #if defined(__clang__)
 #    pragma clang diagnostic push
 #    pragma clang diagnostic ignored "-Wvarargs"
