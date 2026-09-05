@@ -7,12 +7,13 @@ Read it first.
 It carries:
 - The routing table to every detailed document on byeol.io (architecture,
   coding rules, build structure, deployment, testing, document conventions)
-- The repository layout (six repos and the direction of dependencies)
+- The repository layout and the direction of dependencies between the repos
 - Commit and pull request conventions
 - Setup commands
 
-`launcher` is one of those six repositories: it is the `byeol` command users
-actually run, and its job is to resolve which interpreter version to launch.
-When you need deeper information on a specific topic, follow the link in the
-routing table rather than looking for a local Markdown file — the detailed
-documents live on byeol.io, generated from `byeol`'s `doc/`.
+This is one of the core repositories that make up byeol. Before you write or
+change code, read CONTRIBUTING.md and open the documents it links to for what
+you are touching — the coding rules above all. Do not infer conventions from the
+surrounding code; that is how a documented rule gets missed. The detailed
+documents live on byeol.io, generated from `byeol`'s `doc/`, so follow the
+routing-table link rather than looking for a local Markdown file.
